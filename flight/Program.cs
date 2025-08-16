@@ -11,13 +11,14 @@ namespace flight
 
             //Add DbContext
             builder.Services.AddDbContext<Entities>(options =>
-                options.UseInMemoryDatabase(databaseName:"Flights"),ServiceLifetime.Singleton);
+                options.UseSqlServer(builder.Configuration.GetConnectionString("Flights")));
 
             // Add services to the container.
 
             builder.Services.AddControllersWithViews();
             builder.Services.AddSwaggerGen(c=>
             {
+                c.DescribeAllParametersInCamelCase();
                 c.AddServer(new Microsoft.OpenApi.Models.OpenApiServer
                 {
                     Url = "https://localhost:7151",
@@ -26,13 +27,17 @@ namespace flight
                 });
                 c.CustomOperationIds(e => $"{e.ActionDescriptor.RouteValues["action"] + e.ActionDescriptor.RouteValues["controller"]}");
             });
-            builder.Services.AddSingleton<Entities>();
+            builder.Services.AddScoped<Entities>();
             var app = builder.Build();
 
             var entities=app.Services.CreateScope().ServiceProvider.GetRequiredService<Entities>();
+            entities.Database.EnsureCreated();
+            
             var random = new Random();
-            Flight[] flightsToSeed = new Flight[]
-                { new (   Guid.NewGuid(),
+            if (!entities.Flights.Any())
+            {
+                Flight[] flightsToSeed = new Flight[]
+                    { new (   Guid.NewGuid(),
                 "American Airlines",
                 random.Next(90, 5000).ToString(),
                 new TimePlace("Los Angeles",DateTime.Now.AddHours(random.Next(1, 3))),
@@ -80,8 +85,10 @@ namespace flight
                 new TimePlace("Le Bourget",DateTime.Now.AddHours(random.Next(1, 58))),
                 new TimePlace("Zagreb",DateTime.Now.AddHours(random.Next(4, 60))),
                     random.Next(1, 853))};
-            entities.Flights.AddRange(flightsToSeed);
-            entities.SaveChanges();
+                entities.Flights.AddRange(flightsToSeed);
+                entities.SaveChanges();
+            }
+            
             app.UseCors(builder=>builder
                 .WithOrigins("*")
                 .AllowAnyMethod()
